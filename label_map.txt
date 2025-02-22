@@ -1,0 +1,3 @@
+item { id:1,name:'healthy'}
+item { id:2,name:'BrownSpot'}
+item { id:3,name:'hispa'}
