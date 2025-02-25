@@ -1,23 +1,11 @@
-"""
-Usage:
-  # From tensorflow/models/
-  # Create train data:
-  python generate_tfrecord.py --csv_input=data/train_labels.csv  --output_path=train.record
-  # Create test data:
-  python generate_tfrecord.py --csv_input=data/test_labels.csv  --output_path=test.record
-"""
-from __future__ import division
-from __future__ import print_function
-from __future__ import absolute_import
-
+from __future__ import division, print_function, absolute_import
 import os
 import io
 import pandas as pd
 import tensorflow.compat.v1 as tf
-
 from PIL import Image
 from object_detection.utils import dataset_util
-from collections import namedtuple, OrderedDict
+from collections import namedtuple
 
 flags = tf.app.flags
 flags.DEFINE_string('csv_input', '', 'Path to the CSV input')
@@ -25,30 +13,24 @@ flags.DEFINE_string('output_path', '', 'Path to output TFRecord')
 flags.DEFINE_string('image_dir', '', 'Path to images')
 FLAGS = flags.FLAGS
 
-
-# TO-DO replace this with label map
+# Replace this with your label map
 def class_text_to_int(row_label):
     VOC_LABELS = {
-        'none': (0, 'Background'),
-        'Healthy': (1, 'Healthy'),
-        'BrownSpot': (2, 'BrownSpot'),
-        'Hispa': (3, 'Hispa'),
-        'LeafBlast': (4, 'LeafBlast')}
-    return VOC_LABELS[row_label][0]
-    # if row_label == 'mobile':
-    #     return 1
-    # else:
-    #     None
-
+        'none': 0,
+        'Healthy': 1,
+        'BrownSpot': 2,
+        'Hispa': 3,
+        'LeafBlast': 4
+    }
+    return VOC_LABELS.get(row_label, 0)
 
 def split(df, group):
     data = namedtuple('data', ['filename', 'object'])
     gb = df.groupby(group)
     return [data(filename, gb.get_group(x)) for filename, x in zip(gb.groups.keys(), gb.groups)]
 
-
 def create_tf_example(group, path):
-    with tf.gfile.GFile(os.path.join(path, '{}'.format(group.filename)), 'rb') as fid:
+    with tf.io.gfile.GFile(os.path.join(path, '{}'.format(group.filename)), 'rb') as fid:
         encoded_jpg = fid.read()
     encoded_jpg_io = io.BytesIO(encoded_jpg)
     image = Image.open(encoded_jpg_io)
@@ -56,14 +38,9 @@ def create_tf_example(group, path):
 
     filename = group.filename.encode('utf8')
     image_format = b'jpg'
-    xmins = []
-    xmaxs = []
-    ymins = []
-    ymaxs = []
-    classes_text = []
-    classes = []
+    xmins, xmaxs, ymins, ymaxs, classes_text, classes = [], [], [], [], [], []
 
-    for index, row in group.object.iterrows():
+    for _, row in group.object.iterrows():
         xmins.append(row['xmin'] / width)
         xmaxs.append(row['xmax'] / width)
         ymins.append(row['ymin'] / height)
@@ -87,20 +64,18 @@ def create_tf_example(group, path):
     }))
     return tf_example
 
-
 def main(_):
-    writer = tf.python_io.TFRecordWriter(FLAGS.output_path)
-    path = os.path.join(FLAGS.image_dir)
+    writer = tf.io.TFRecordWriter(FLAGS.output_path)
+    path = FLAGS.image_dir
     examples = pd.read_csv(FLAGS.csv_input)
     grouped = split(examples, 'filename')
+
     for group in grouped:
         tf_example = create_tf_example(group, path)
         writer.write(tf_example.SerializeToString())
 
     writer.close()
-    output_path = os.path.join(os.getcwd(), FLAGS.output_path)
-    print('Successfully created the TFRecords: {}'.format(output_path))
-
+    print(f'Successfully created the TFRecords: {FLAGS.output_path}')
 
 if __name__ == '__main__':
     tf.app.run()
